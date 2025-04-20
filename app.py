@@ -98,7 +98,7 @@ if turn < max_turns and "final" not in st.session_state:
         st.session_state.turn += 1
         st.experimental_rerun()
 
- st.progress(turn / max_turns)
+   st.progress(turn / max_turns)
 
  # show the diagnose button only after ≥3 Q/A pairs OR max_turns reached
  if len(st.session_state.revealed) >= 3 or turn >= max_turns:
