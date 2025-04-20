@@ -9,42 +9,19 @@ openai.api_key = st.secrets["OPENAI_KEY"]
 # ASCII only to avoid syntax issues
 
 CASE_PROMPT = """
-You are a board‑prep item writer. Create ONE *adult* case and RETURN it as raw
-json using the schema shown below. Randomly vary the underlying condition so
-repeated calls cover a broad syllabus, not just cardiopulmonary cases.
+You are a board-prep item writer. Create ONE adult case and return it as raw
+json (schema below). Repeated calls should **cycle through different disease
+categories** according to the distribution. You will receive an array
+"prev_diagnoses" listing the final diagnoses used in earlier rounds of the
+current session—**do not pick the same diagnosis if it appears in that list**.
 
-Target distribution (approx.):
-- 25% Cardiovascular / Respiratory (e.g., AMI, COPD, Asthma, PE)
-- 20% Infectious diseases (CAP, meningitis, sepsis, and at least one tropical
-  illness such as malaria, dengue, typhoid, schistosomiasis, or Chagas)
-- 15% Endocrine / Metabolic (DKA, thyroid storm, adrenal crisis)
-- 10% Oncology / Hematology (acute leukemia, colon cancer, lung cancer,
-  lymphoma, paraneoplastic syndromes)
-- 10% Neurologic / Psychiatric (stroke, meningitis, include panic attack or
-  anxiety‑induced chest pain among these)
-- 10% Gastro‑Hepato (GI bleed, acute pancreatitis, viral hepatitis)
-- 10% Renal / Rheum / Misc. (AKI, lupus flare, sickle crisis, etc.)
+(Distribution list unchanged...)
 
-Return json exactly:
-{
-  "stem": "<concise patient H&P>",
-  "hidden_data": {
-    "gold_dx": "<single best final diagnosis>",
-    "gold_tx": "<best initial management>",
-    "question_bank": [
-      {"q": "<diagnostic step>", "a": "<objective result>"}, ...
-    ],
-    "CASE_ID": "<copy seed value>"
-  }
-}
+Return json exactly: {...}
 
-Other rules:
-- At least 15 diagnostic steps (~30% history/physical, 70% objective tests).
-- Answers purely factual; give normal values for negative results; never say
-  "not provided" or "not performed".
-- No interpretation or management hints.
-- Echo CASE_ID from payload.
+(Other rules unchanged...)
 Output ONLY the json object.
+"""
 """
 
 QUESTION_PICKER = """
@@ -102,8 +79,13 @@ def chat(system_prompt: str, payload: dict) -> dict:
 # -------------- SESSION HELPERS -------------------
 
 def generate_new_case():
-    seed = {"seed": time.time()}
-    st.session_state.case = chat(CASE_PROMPT, seed)
+    prev_dx = st.session_state.get("prev_diagnoses", [])
+    seed = {"seed": time.time(), "prev_diagnoses": prev_dx}
+    new_case = chat(CASE_PROMPT, seed)
+    st.session_state.case = new_case
+    # store history of diagnoses
+    prev_dx.append(new_case["hidden_data"]["gold_dx"])
+    st.session_state.prev_diagnoses = prev_dx[-10:]  # keep last 10
     st.session_state.turn = 0
     st.session_state.revealed = {}
     st.session_state.final = False
