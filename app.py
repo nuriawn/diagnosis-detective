@@ -3,60 +3,81 @@ import streamlit as st, json, openai, time
 st.set_page_config(page_title="Diagnosis Detective", layout="wide")
 
 # ---------------------- API KEY ----------------------
-openai.api_key = st.secrets["OPENAI_KEY"]
+openai.api_key = st.secrets.get("OPENAI_KEY", "")
 
 # ------------------ PROMPT TEMPLATES -----------------
-# ASCII only to avoid syntax issues
+# NOTE: Plain ASCII only – no fancy bullets or non‑breaking hyphens
 
 CASE_PROMPT = """
-You are a board-prep item writer. Create ONE adult case and return it as raw
-json (schema below). Repeated calls should **cycle through different disease
-categories** according to the distribution. You will receive an array
-"prev_diagnoses" listing the final diagnoses used in earlier rounds of the
-current session—**do not pick the same diagnosis if it appears in that list**.
+You are a board‑prep item writer. Create ONE adult case and return it as raw
+JSON (schema below). Repeated calls must cycle through *different* disease
+categories. The payload includes an array called prev_diagnoses with diagnoses
+used earlier in the session – do NOT pick any diagnosis already in that list.
 
-(Distribution list unchanged...)
+Target distribution (approx.):
+- 25% Cardiovascular / Respiratory (AMI, COPD, asthma, PE, etc.)
+- 20% Infectious diseases (CAP, meningitis, sepsis, plus at least one tropical
+  illness such as malaria, dengue, typhoid, schistosomiasis, or Chagas)
+- 15% Endocrine / Metabolic (DKA, thyroid storm, adrenal crisis)
+- 10% Oncology / Hematology (acute leukemia, colon cancer, lung cancer,
+  lymphoma, paraneoplastic syndromes)
+- 10% Neurologic / Psychiatric (stroke, meningitis, panic attack, etc.)
+- 10% Gastro‑Hepato (GI bleed, pancreatitis, viral hepatitis)
+- 10% Renal / Rheum / Misc. (AKI, lupus flare, sickle crisis, etc.)
 
-Return json exactly: {...}
+Return JSON exactly:
+{
+  "stem": "<concise patient H&P>",
+  "hidden_data": {
+    "gold_dx": "<single best final diagnosis>",
+    "gold_tx": "<best initial management>",
+    "question_bank": [
+      {"q": "<diagnostic step>", "a": "<objective result>"}, ...
+    ],
+    "CASE_ID": "<copy seed value>"
+  }
+}
 
-(Other rules unchanged...)
-Output ONLY the json object.
-"""
+Other rules:
+- At least 15 diagnostic steps (~30% history/physical, 70% objective tests).
+- Answers are purely factual; give normal values for negative results; never
+  write "not provided", "not performed", or similar.
+- Do NOT add interpretation or management hints.
+- Echo CASE_ID from payload.
+Output ONLY the JSON object – no markdown.
 """
 
 QUESTION_PICKER = """
-You are a teaching attending. Input payload contains:
-  - case (json)
+You are a teaching attending. Payload contains:
+  - case (the JSON case)
   - questions_already_asked (list)
   - current_turn (int starting at 0)
-Return json exactly: {"next_q": ["q1", "q2", "q3"]}
+Return JSON exactly: {"next_q": ["q1", "q2", "q3"]}
 Guidelines:
 - Suggest 3 NEW diagnostic steps not yet asked.
-- Each returned trio must include at least TWO objective tests (lab, imaging,
-  point‑of‑care study, etc.).
-- Maintain an overall mix of about 70% objective tests and 30% history/physical
-  across the whole game.
+- Each trio must include at least TWO objective tests (lab, imaging, POC study, etc.).
+- Maintain an overall 70% objective tests / 30% history‑physical mix throughout the game.
 - Do NOT include treatment or diagnosis questions.
 """
 
 ANSWER_PROMPT = """
 You are the patient's electronic record. Provide the objective result for the
-chosen diagnostic step AS IF the test was performed. If normal, state that.
-Respond with json: {"answer": "<objective result>"}
+chosen diagnostic step *as if the test was performed*. If normal, state that.
+Respond with JSON: {"answer": "<objective result>"}
 """
 
 DX_TX_CHOICES = """
-Using the case json, build TWO shuffled lists (length 3) for diagnosis and
-initial treatment. Each list must contain EXACTLY one correct answer.
-Return json: {"dx_options": [...], "tx_options": [...]}.
+Using the case JSON, build TWO shuffled lists (length 3) – one for diagnosis,
+one for initial treatment. Each list must contain EXACTLY one correct answer.
+Return JSON: {"dx_options": [...], "tx_options": [...]}.
 """
 
 EXPLANATION_PROMPT = """
-You are a clinician‑educator. Given the case json, the player's choices, and
-correct answers, return json:
+You are a clinician‑educator. Given the case JSON, the player's picks, and the
+correct answers, return JSON:
 {
-  "dx_explanation": "<why correct / incorrect>",
-  "tx_explanation": "<why correct / incorrect>"
+  "dx_explanation": "<brief rationale>",
+  "tx_explanation": "<brief rationale>"
 }
 Each explanation <= 120 words.
 """
@@ -64,28 +85,28 @@ Each explanation <= 120 words.
 # ----------------- HELPER FUNCTION -----------------
 
 def chat(system_prompt: str, payload: dict) -> dict:
-    """Call the OpenAI chat endpoint and return parsed JSON."""
-    resp = openai.chat.completions.create(
+    """Call OpenAI chat endpoint and parse JSON response."""
+    response = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": json.dumps(payload)}
         ],
         temperature=0.3,
-        response_format={"type": "json_object"},
+        response_format={"type": "json_object"}
     )
-    return json.loads(resp.choices[0].message.content)
+    return json.loads(response.choices[0].message.content)
 
 # -------------- SESSION HELPERS -------------------
 
 def generate_new_case():
     prev_dx = st.session_state.get("prev_diagnoses", [])
-    seed = {"seed": time.time(), "prev_diagnoses": prev_dx}
-    new_case = chat(CASE_PROMPT, seed)
+    seed_payload = {"seed": time.time(), "prev_diagnoses": prev_dx}
+    new_case = chat(CASE_PROMPT, seed_payload)
+    # store
     st.session_state.case = new_case
-    # store history of diagnoses
     prev_dx.append(new_case["hidden_data"]["gold_dx"])
-    st.session_state.prev_diagnoses = prev_dx[-10:]  # keep last 10
+    st.session_state.prev_diagnoses = prev_dx[-10:]  # keep last 10 distinct diagnoses
     st.session_state.turn = 0
     st.session_state.revealed = {}
     st.session_state.final = False
@@ -94,7 +115,6 @@ def generate_new_case():
 if "case" not in st.session_state:
     generate_new_case()
 
-# -------------- CONSTANTS -------------------------
 MAX_TURNS = 10
 
 # ------------------- UI HEADER --------------------
@@ -123,14 +143,12 @@ st.divider()
 if turn < MAX_TURNS and not st.session_state.final:
     q_key = f"qset_{turn}"
     if q_key not in st.session_state:
-        q_dict = chat(
-            QUESTION_PICKER,
-            {
-                "case": case,
-                "questions_already_asked": list(st.session_state.revealed),
-                "current_turn": turn,
-            },
-        )
+        picker_payload = {
+            "case": case,
+            "questions_already_asked": list(st.session_state.revealed),
+            "current_turn": turn,
+        }
+        q_dict = chat(QUESTION_PICKER, picker_payload)
         st.session_state[q_key] = q_dict["next_q"]
 
     st.subheader("Choose your next diagnostic step")
