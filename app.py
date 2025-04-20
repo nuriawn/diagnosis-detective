@@ -75,35 +75,39 @@ st.markdown("#### Patient vignette")
 st.write(st.session_state.case["stem"])
 st.divider()
 
-# ---------- QUESTION PHASE ----------
-if turn < max_turns and "final" not in st.session_state:
-    # pick / cache question set
-    key = f"qset_{turn}"
-    if key not in st.session_state:
-        q_raw = chat(
-            QUESTION_PICKER,
-            {"case": case, "already": list(st.session_state.revealed)}
-        )
-        st.session_state[key] = json.loads(q_raw)["next_q"]
+    # ---------- QUESTION PHASE ----------
+    if turn < max_turns and "final" not in st.session_state:
+        # pick / cache question set
+        key = f"qset_{turn}"
+        if key not in st.session_state:
+            q_raw = chat(
+                QUESTION_PICKER,
+                {"case": case, "already": list(st.session_state.revealed)}
+            )
+            st.session_state[key] = json.loads(q_raw)["next_q"]
 
-    st.subheader("Choose your next question")
-    choice = st.radio("", st.session_state[key], index=None)
+        st.subheader("Choose your next question")
+        choice = st.radio("", st.session_state[key], index=None)
 
-    if choice:
-        ans_raw = chat(ANSWER_PROMPT, {"case": case, "ask": choice})
-        ans_json = json.loads(ans_raw)
-        st.success(ans_json["answer"])
-        st.session_state.case = ans_json["updated_case"]
-        st.session_state.revealed[choice] = ans_json["answer"]
-        st.session_state.turn += 1
-        st.experimental_rerun()
+        if choice:
+            ans_raw = chat(ANSWER_PROMPT, {"case": case, "ask": choice})
+            ans_json = json.loads(ans_raw)
+            st.success(ans_json["answer"])
+            st.session_state.case = ans_json["updated_case"]
+            st.session_state.revealed[choice] = ans_json["answer"]
+            st.session_state.turn += 1
+            st.experimental_rerun()
 
-   st.progress(turn / max_turns)
+        # progress bar
+        st.progress(turn / max_turns)
 
- # show the diagnose button only after ≥3 Q/A pairs OR max_turns reached
- if len(st.session_state.revealed) >= 3 or turn >= max_turns:
-     st.button("I’m ready to diagnose",
-               on_click=lambda: st.session_state.update(final=True))
+        # show the diagnose button only after ≥3 answers or when turn cap hit
+        if len(st.session_state.revealed) >= 3 or turn >= max_turns:
+            st.button(
+                "I’m ready to diagnose",
+                on_click=lambda: st.session_state.update(final=True)
+            )
+
 
 # ---------- FINAL CHOICES ----------
 if turn >= max_turns or st.session_state.get("final"):
