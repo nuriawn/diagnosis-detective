@@ -6,26 +6,26 @@ st.set_page_config(page_title="Diagnosis Detective", layout="wide")
 openai.api_key = st.secrets["OPENAI_KEY"]
 
 # ------------------ PROMPT TEMPLATES -----------------
-# ASCII‑only to avoid encoding errors
+# ASCII only to avoid syntax issues
 
 CASE_PROMPT = """
-You are a board-prep item writer. Create ONE *adult* case and RETURN it as raw
-json using the schema shown below. **Randomly vary the underlying condition so
-that repeated calls cover a broad syllabus, not just cardiopulmonary cases.**
+You are a board‑prep item writer. Create ONE *adult* case and RETURN it as raw
+json using the schema shown below. Randomly vary the underlying condition so
+repeated calls cover a broad syllabus, not just cardiopulmonary cases.
 
 Target distribution (approx.):
 - 25% Cardiovascular / Respiratory (e.g., AMI, COPD, Asthma, PE)
-- 20% Infectious diseases (CAP, meningitis, sepsis, *and at least one tropical
-  illness such as malaria, dengue, typhoid, schistosomiasis, or Chagas*)
+- 20% Infectious diseases (CAP, meningitis, sepsis, and at least one tropical
+  illness such as malaria, dengue, typhoid, schistosomiasis, or Chagas)
 - 15% Endocrine / Metabolic (DKA, thyroid storm, adrenal crisis)
-- 10% Oncology / Hematology (e.g., acute leukemia, colon cancer, lung cancer,
+- 10% Oncology / Hematology (acute leukemia, colon cancer, lung cancer,
   lymphoma, paraneoplastic syndromes)
-- 10% Neurologic / Psychiatric (stroke, meningitis, *include panic attack or
-  anxiety-induced chest pain among these*)
+- 10% Neurologic / Psychiatric (stroke, meningitis, include panic attack or
+  anxiety‑induced chest pain among these)
 - 10% Gastro‑Hepato (GI bleed, acute pancreatitis, viral hepatitis)
 - 10% Renal / Rheum / Misc. (AKI, lupus flare, sickle crisis, etc.)
 
-Return **json** exactly:
+Return json exactly:
 {
   "stem": "<concise patient H&P>",
   "hidden_data": {
@@ -39,28 +39,27 @@ Return **json** exactly:
 }
 
 Other rules:
-- ≥15 diagnostic steps per case (~30% history/physical, 70% objective tests).
-- Answers purely factual; supply normal values for negative results; **never**
-  say "not provided/ performed".
+- At least 15 diagnostic steps (~30% history/physical, 70% objective tests).
+- Answers purely factual; give normal values for negative results; never say
+  "not provided" or "not performed".
 - No interpretation or management hints.
 - Echo CASE_ID from payload.
 Output ONLY the json object.
 """
-"""
 
 QUESTION_PICKER = """
 You are a teaching attending. Input payload contains:
-  • case (json)
-  • questions_already_asked (list)
-  • current_turn (int starting at 0)
-RETURN json exactly: {"next_q": ["q1", "q2", "q3"]}
+  - case (json)
+  - questions_already_asked (list)
+  - current_turn (int starting at 0)
+Return json exactly: {"next_q": ["q1", "q2", "q3"]}
 Guidelines:
 - Suggest 3 NEW diagnostic steps not yet asked.
-- **Each returned trio must include _at least two_ objective tests (lab, imaging, point‑of‑care study, etc.).**
-- Maintain a running overall mix of about 70 % objective tests and 30 % history/physical across the whole game.
-- Do NOT include questions about treatment or diagnosis.
-- Otherwise maintain a running mix of about 70% objective tests and 30% history.
-- Do NOT include questions about treatment or diagnosis.
+- Each returned trio must include at least TWO objective tests (lab, imaging,
+  point‑of‑care study, etc.).
+- Maintain an overall mix of about 70% objective tests and 30% history/physical
+  across the whole game.
+- Do NOT include treatment or diagnosis questions.
 """
 
 ANSWER_PROMPT = """
@@ -77,7 +76,7 @@ Return json: {"dx_options": [...], "tx_options": [...]}.
 
 EXPLANATION_PROMPT = """
 You are a clinician‑educator. Given the case json, the player's choices, and
-correct answers, RETURN json:
+correct answers, return json:
 {
   "dx_explanation": "<why correct / incorrect>",
   "tx_explanation": "<why correct / incorrect>"
@@ -85,7 +84,7 @@ correct answers, RETURN json:
 Each explanation <= 120 words.
 """
 
-# ----------------- HELPER FUNCTION ------------------
+# ----------------- HELPER FUNCTION -----------------
 
 def chat(system_prompt: str, payload: dict) -> dict:
     """Call the OpenAI chat endpoint and return parsed JSON."""
@@ -100,7 +99,7 @@ def chat(system_prompt: str, payload: dict) -> dict:
     )
     return json.loads(resp.choices[0].message.content)
 
-# -------------- SESSION HELPERS --------------------
+# -------------- SESSION HELPERS -------------------
 
 def generate_new_case():
     seed = {"seed": time.time()}
@@ -113,10 +112,10 @@ def generate_new_case():
 if "case" not in st.session_state:
     generate_new_case()
 
-# -------------- CONSTANTS --------------------------
-max_turns = 10
+# -------------- CONSTANTS -------------------------
+MAX_TURNS = 10
 
-# ------------------- UI HEADER ---------------------
+# ------------------- UI HEADER --------------------
 st.title("🩺 Diagnosis Detective")
 if st.button("🔄 Start a new case"):
     generate_new_case()
@@ -128,7 +127,7 @@ turn = st.session_state.turn
 st.markdown("#### Patient vignette")
 st.write(case["stem"])
 
-# --------- DISPLAY REVEALED INFORMATION ------------
+# -------- DISPLAY REVEALED INFORMATION ------------
 if st.session_state.revealed:
     st.divider()
     st.markdown("#### Information gathered so far")
@@ -138,8 +137,8 @@ if st.session_state.revealed:
 
 st.divider()
 
-# ---------------- QUESTION PHASE -------------------
-if turn < max_turns and not st.session_state.final:
+# ---------------- QUESTION PHASE ------------------
+if turn < MAX_TURNS and not st.session_state.final:
     q_key = f"qset_{turn}"
     if q_key not in st.session_state:
         q_dict = chat(
@@ -166,12 +165,12 @@ if turn < max_turns and not st.session_state.final:
         st.session_state.turn += 1
         st.rerun()
 
-    st.progress(turn / max_turns)
-    if len(st.session_state.revealed) >= 3 or turn >= max_turns:
+    st.progress(turn / MAX_TURNS)
+    if len(st.session_state.revealed) >= 3 or turn >= MAX_TURNS:
         st.button("I’m ready to diagnose", on_click=lambda: st.session_state.update(final=True))
 
-# ----------------- FINAL PHASE ---------------------
-if turn >= max_turns or st.session_state.final:
+# ----------------- FINAL PHASE --------------------
+if turn >= MAX_TURNS or st.session_state.final:
     if "final_opts" not in st.session_state:
         st.session_state.final_opts = chat(DX_TX_CHOICES, case)
 
@@ -184,7 +183,7 @@ if turn >= max_turns or st.session_state.final:
         score = (
             (50 if dx == gold["gold_dx"] else 0)
             + (30 if tx == gold["gold_tx"] else 0)
-            + (max(0, max_turns - turn) * 10)
+            + (max(0, MAX_TURNS - turn) * 10)
         )
         st.metric("Your score", score)
 
