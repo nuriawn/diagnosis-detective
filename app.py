@@ -98,7 +98,12 @@ if turn < max_turns and not st.session_state.final:
         st.session_state[key] = json.loads(qset_raw)["next_q"]
 
     st.subheader("Choose your next question / exam")
-    choice = st.radio("", st.session_state[key], index=None)
+    choice = st.radio(
+        label="Diagnostic options",
+        options=st.session_state[key],
+        index=None,
+        label_visibility="collapsed"
+    )
 
     if choice:
         # Get the answer & updated case
@@ -111,12 +116,12 @@ if turn < max_turns and not st.session_state.final:
         st.session_state.case = ans_json["updated_case"]
         st.session_state.revealed[choice] = ans_json["answer"]
         st.session_state.turn += 1
-        st.experimental_rerun()
+        st.rerun()
 
     # Progress bar
     st.progress(turn / max_turns)
 
-    # Show diagnose button after ≥3 answers or at turn cap
+    # Show diagnose button after ≥3 answers or when turn cap hit
     if len(st.session_state.revealed) >= 3 or turn >= max_turns:
         st.button(
             "I’m ready to diagnose",
