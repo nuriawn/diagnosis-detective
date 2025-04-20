@@ -17,6 +17,32 @@ RETURN IT AS raw **json** with this schema:
     "gold_dx": "<single best final diagnosis>",
     "gold_tx": "<best initial management>",
     "question_bank": [
+      {"q": "<diagnostic step>", "a": "<objective result>"}, ...
+    ]
+  }
+}
+Rules for question_bank:
+- ≥ 15 items.
+- At least 6 must be objective studies (labs, imaging, ECG, scopes, etc.).
+- The rest may be focused history or physical‑exam maneuvers.
+- **Every answer must be purely factual** — write it exactly as it would appear
+  in a chart or report (e.g., "WBC 15 K/µL, neutrophil‑predominant" or
+  "Chest X‑ray: hyperinflated lungs, no focal infiltrate").
+- Absolutely **do NOT provide interpretation, likelihood statements, or clues
+  about the correct diagnosis** in any answer.
+- No items about treatment, management, prognosis, or differential reasoning.
+Add a unique CASE_ID field that matches the supplied seed so each request
+produces a fresh vignette.
+Output the json object only.
+"""
+You are a board‑prep item writer. Create ONE adult internal‑medicine case and
+RETURN IT AS raw **json** with this schema:
+{
+  "stem": "<concise patient H&P>",
+  "hidden_data": {
+    "gold_dx": "<single best final diagnosis>",
+    "gold_tx": "<best initial management>",
+    "question_bank": [
       {"q": "<diagnostic step>", "a": "<truthful answer/result>"}, ...
     ]
   }
@@ -42,6 +68,11 @@ Guidelines:
 """
 
 ANSWER_PROMPT = """
+You are the patient's electronic record. Return the objective result for the
+user's chosen diagnostic step. **Do NOT add interpretation, likelihood, or
+clinical commentary.** Respond with **json**:
+{"answer": "<objective finding or report>"}
+"""
 You are the patient's record. Answer the chosen diagnostic step for this case.
 Reply with **json**: {"answer": "..."}
 """
