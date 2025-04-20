@@ -1,0 +1,2 @@
+streamlit            # (optional—already present in Cloud image)
+openai>=1.13.3       # or latest stable
