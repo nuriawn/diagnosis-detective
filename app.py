@@ -67,6 +67,11 @@ max_turns = 6
 
 st.title("🩺 Diagnosis Detective")
 
+# ---------- DISPLAY CASE STEM ----------
+st.markdown("#### Patient vignette")
+st.write(st.session_state.case["stem"])
+st.divider()
+
 # ---------- QUESTION PHASE ----------
 if turn < max_turns and "final" not in st.session_state:
     # pick / cache question set
