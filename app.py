@@ -6,45 +6,55 @@ st.set_page_config(page_title="Diagnosis Detective", layout="wide")
 openai.api_key = st.secrets["OPENAI_KEY"]
 
 # ───────────────────────────────────── PROMPT TEMPLATES ─────────────────────────────────────
+# (All prompts intentionally include the lowercase word "json" so the
+#  response_format={"type": "json_object"} requirement is satisfied.)
+
 CASE_PROMPT = """
-Act as a board‑prep item writer. Create ONE adult internal‑medicine case.
-Return JSON with:
-  "stem": <concise patient history & physical>,
+You are a board‑prep item writer. Create ONE adult internal‑medicine case and
+return it as a **json** object with this structure:
+{
+  "stem": "<concise patient history & physical>",
   "hidden_data": {
-    "gold_dx": <single gold‑standard final diagnosis>,
-    "gold_tx": <best initial management>,
+    "gold_dx": "<gold‑standard final diagnosis>",
+    "gold_tx": "<best initial management>",
     "question_bank": [
-      {"q": "...", "a": "..."}, ...
+       {"q": "<diagnostic question>", "a": "<truthful answer>"},
+       ... (≥ 15 items) ...
     ]
   }
+}
 Rules:
-- Provide at least 15 Q/A pairs. Each **q** MUST be a diagnostic inquiry or test order (history detail, physical exam, lab, imaging, etc.).
-- EXCLUDE any question about differential reasoning, likely cause, prognosis, or treatment.
-- Output ONLY the JSON object.
+- Every question in question_bank MUST be a diagnostic inquiry or test order
+  (history detail, physical‑exam manoeuvre, lab, imaging, etc.).
+- EXCLUDE any question about management, treatment, or differential reasoning.
+- Do not wrap the object in markdown; output the raw json only.
 """
 
 QUESTION_PICKER = """
-You are a teaching attending. Given:
-  • full case JSON
-  • questions_already_asked
-Return THREE next‑best diagnostic questions/exams that have NOT been asked yet.
-Respond with {"next_q": ["q1", "q2", "q3"]} only.
+You are a teaching attending. Given a case stored as a **json** object and a
+list of questions_already_asked, reply with another json object:
+{"next_q": ["q1", "q2", "q3"]}
+where each q is a NEW diagnostic question or test that has not been asked yet.
+Do not propose items about treatment or diagnosis.
 """
 
 ANSWER_PROMPT = """
-Provide the truthful answer to the chosen diagnostic question for this patient.
-Return only: {"answer": "..."}
+You are the patient's record. Answer the user's chosen diagnostic question for
+this case. Reply with exactly this **json** shape: {"answer": "..."}
+No additional keys.
 """
 
 DX_TX_CHOICES = """
-Given the full case JSON, create shuffled multiple‑choice lists for diagnosis and treatment.
-Return exactly: {"dx_options": [...], "tx_options": [...]} with ONE correct answer in each list.
+Create two shuffled multiple‑choice lists (three options each) for diagnosis
+and treatment, based on the provided case **json**. Respond with a json object:
+{"dx_options": ["...", "...", "..."], "tx_options": ["...", "...", "..."]}
+Include exactly ONE correct entry in each list.
 """
 
 # ───────────────────────────────────── HELPER ───────────────────────────────────────────────
 
-def chat(system_prompt: str, payload: dict) -> str:
-    """Call the OpenAI chat endpoint and force JSON output."""
+def chat(system_prompt: str, payload: dict) -> dict:
+    """Call OpenAI chat with forced‑JSON output and return the parsed object."""
     resp = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -54,11 +64,11 @@ def chat(system_prompt: str, payload: dict) -> str:
         temperature=0.2,
         response_format={"type": "json_object"}
     )
-    return resp.choices[0].message.content
+    return json.loads(resp.choices[0].message.content)
 
 # ───────────────────────────────────── SESSION INIT ─────────────────────────────────────────
 if "case" not in st.session_state:
-    st.session_state.case = json.loads(chat(CASE_PROMPT, {}))
+    st.session_state.case = chat(CASE_PROMPT, {})
     st.session_state.turn = 0
     st.session_state.revealed = {}  # {question: answer}
     st.session_state.final = False
@@ -71,8 +81,7 @@ max_turns = 10
 st.title("🩺 Diagnosis Detective")
 
 if st.button("🔄 Start a new case"):
-    for k in ("case", "turn", "revealed", "final", "final_opts"):
-        st.session_state.pop(k, None)
+    st.session_state.clear()
     st.rerun()
 
 st.markdown("#### Patient vignette")
@@ -91,17 +100,24 @@ st.divider()
 # ───────────────────────────────────── QUESTION PHASE ───────────────────────────────────────
 if turn < max_turns and not st.session_state.final:
     key = f"qset_{turn}"
+
+    # Fetch or cache next trio of diagnostic questions
     if key not in st.session_state:
-        q_raw = chat(QUESTION_PICKER, {"case": case, "questions_already_asked": list(st.session_state.revealed)})
-        st.session_state[key] = json.loads(q_raw)["next_q"]
+        q_data = chat(
+            QUESTION_PICKER,
+            {"case": case, "questions_already_asked": list(st.session_state.revealed)}
+        )
+        st.session_state[key] = q_data["next_q"]
 
     st.subheader("Choose your next diagnostic step")
-    choice = st.radio("Diagnostic options", st.session_state[key], index=None, label_visibility="collapsed")
+    choice = st.radio(
+        label="Diagnostic options", options=st.session_state[key], index=None,
+        label_visibility="collapsed"
+    )
 
     if choice:
-        ans_raw = chat(ANSWER_PROMPT, {"case": case, "ask": choice})
-        ans_json = json.loads(ans_raw)
-        st.session_state.revealed[choice] = ans_json["answer"]
+        answer_obj = chat(ANSWER_PROMPT, {"case": case, "ask": choice})
+        st.session_state.revealed[choice] = answer_obj["answer"]
         st.session_state.turn += 1
         st.rerun()
 
@@ -113,7 +129,7 @@ if turn < max_turns and not st.session_state.final:
 # ───────────────────────────────────── FINAL PHASE ──────────────────────────────────────────
 if turn >= max_turns or st.session_state.final:
     if "final_opts" not in st.session_state:
-        st.session_state.final_opts = json.loads(chat(DX_TX_CHOICES, case))
+        st.session_state.final_opts = chat(DX_TX_CHOICES, case)
 
     opts = st.session_state.final_opts
     dx = st.radio("Pick the diagnosis", opts["dx_options"], index=None)
