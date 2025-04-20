@@ -1,5 +1,5 @@
 # -------------- app.py --------------
-import streamlit as st, openai, json
+import streamlit as st, json, openai
 
 st.set_page_config(page_title="Diagnosis Detective", layout="wide")
 openai.api_key = st.secrets["OPENAI_KEY"]
