@@ -9,29 +9,43 @@ openai.api_key = st.secrets["OPENAI_KEY"]
 # ASCII‑only to avoid encoding errors
 
 CASE_PROMPT = """
-You are a board‑prep item writer. Create ONE adult internal‑medicine case and
-RETURN IT AS raw json with this schema:
+You are a board-prep item writer. Create ONE *adult* case and RETURN it as raw
+json using the schema shown below. **Randomly vary the underlying condition so
+that repeated calls cover a broad syllabus, not just cardiopulmonary cases.**
+
+Target distribution (approx.):
+- 25% Cardiovascular / Respiratory (e.g., AMI, COPD, Asthma, PE)
+- 20% Infectious diseases (CAP, meningitis, sepsis, *and at least one tropical
+  illness such as malaria, dengue, typhoid, schistosomiasis, or Chagas*)
+- 15% Endocrine / Metabolic (DKA, thyroid storm, adrenal crisis)
+- 10% Oncology / Hematology (e.g., acute leukemia, colon cancer, lung cancer,
+  lymphoma, paraneoplastic syndromes)
+- 10% Neurologic / Psychiatric (stroke, meningitis, *include panic attack or
+  anxiety-induced chest pain among these*)
+- 10% Gastro‑Hepato (GI bleed, acute pancreatitis, viral hepatitis)
+- 10% Renal / Rheum / Misc. (AKI, lupus flare, sickle crisis, etc.)
+
+Return **json** exactly:
 {
   "stem": "<concise patient H&P>",
   "hidden_data": {
     "gold_dx": "<single best final diagnosis>",
     "gold_tx": "<best initial management>",
     "question_bank": [
-      {"q": "<diagnostic step>", "a": "<objective result>"},
-      ...
+      {"q": "<diagnostic step>", "a": "<objective result>"}, ...
     ],
     "CASE_ID": "<copy seed value>"
   }
 }
-Rules for question_bank:
-- At least 15 items.
-- About 30% history/physical and 70% objective tests.
-- Every answer is purely factual. If normal or negative, state a normal value
-  (e.g., "D‑dimer 0.2 ug/mL – Normal") or simply "Normal".
-- NEVER output phrases like "not provided", "not performed", "N/A".
-- No interpretation or management advice.
-Always echo the CASE_ID from the provided seed.
+
+Other rules:
+- ≥15 diagnostic steps per case (~30% history/physical, 70% objective tests).
+- Answers purely factual; supply normal values for negative results; **never**
+  say "not provided/ performed".
+- No interpretation or management hints.
+- Echo CASE_ID from payload.
 Output ONLY the json object.
+"""
 """
 
 QUESTION_PICKER = """
