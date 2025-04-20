@@ -46,9 +46,11 @@ def chat(system_prompt, user_payload):
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": json.dumps(user_payload)}
+            {"role": "user",  "content": json.dumps(user_payload)}
         ],
-        temperature=0.2
+        temperature=0.2,
+        # 👇 NEW line guarantees valid JSON back
+        response_format={"type": "json_object"}
     )
     return response.choices[0].message.content
 
