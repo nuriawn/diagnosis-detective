@@ -42,6 +42,9 @@ You are a teaching attending. Input payload contains:
 RETURN json exactly: {"next_q": ["q1", "q2", "q3"]}
 Guidelines:
 - Suggest 3 NEW diagnostic steps not yet asked.
+- **Each returned trio must include _at least two_ objective tests (lab, imaging, point‑of‑care study, etc.).**
+- Maintain a running overall mix of about 70 % objective tests and 30 % history/physical across the whole game.
+- Do NOT include questions about treatment or diagnosis.
 - Otherwise maintain a running mix of about 70% objective tests and 30% history.
 - Do NOT include questions about treatment or diagnosis.
 """
