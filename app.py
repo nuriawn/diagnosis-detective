@@ -24,14 +24,15 @@ RETURN IT AS raw json with this schema:
 }
 Rules for question_bank:
 - At least 15 items.
-- At least 6 must be objective studies (labs, imaging, ECG, scopes, etc.).
-- Remaining items may be focused history or physical‑exam maneuvers.
-- Every answer must be purely factual, exactly as it would appear in a chart or
-  report (for example, "WBC 15 K/uL, neutrophil‑predominant").
-- Do NOT provide interpretation, likelihood statements, or clues about the
-  correct diagnosis in any answer.
+- About 30 % should be focused **history / physical‑exam** inquiries and 70 % **objective tests** (labs, imaging, ECG, scopes, etc.).
+- The **first 5** items in the list must be history/physical so early turns favour clinical questioning.
+- Every answer must be purely factual, exactly as it would appear in a chart or report.
+  *If the finding is normal/negative, explicitly state "Normal" or a typical reference‑range value (e.g., "D‑dimer: 0.2 µg/mL – within normal limits").*
+  *Never say "not performed", "N/A", or provide hints about relevance.*
+- Do NOT provide interpretation, likelihood statements, or diagnostic clues in any answer.
 - No items about treatment, management, prognosis, or differential reasoning.
 Always include a unique CASE_ID that matches the supplied seed so each request
+produces a fresh vignette. a unique CASE_ID that matches the supplied seed so each request
 produces a fresh vignette.
 Output the json object only.
 """
@@ -42,11 +43,17 @@ questions_already_asked, RETURN json:
 {"next_q": ["q1", "q2", "q3"]}
 Guidelines:
 - Provide 3 brand‑new diagnostic steps not yet asked.
-- Try to mix modalities: include labs or imaging if none asked recently.
+- **If < 2 turns have elapsed**, favour history/physical questions.
+- After that, aim for roughly 70 % objective tests and 30 % history/physical across the remaining turns.
 - Do NOT include questions about treatment or final diagnosis.
 """
 
 ANSWER_PROMPT = """
+You are the patient's electronic record. Return the objective result for the
+user's chosen diagnostic step *as if the test WERE performed*. If the result is
+normal/negative, state that plainly. Do NOT add interpretation or commentary.
+Respond with json: {"answer": "<objective finding or normal result>"}
+"""
 You are the patient's electronic record. Return the objective result for the
 user's chosen diagnostic step. Do NOT add interpretation, likelihood, or
 clinical commentary. Respond with json:
@@ -54,10 +61,12 @@ clinical commentary. Respond with json:
 """
 
 DX_TX_CHOICES = """
-Using the provided case json, build two shuffled multiple‑choice arrays
-(each of length 3) and return as json:
+Using the provided case json, build two arrays (length 3) for diagnosis and
+initial treatment. Each list must contain EXACTLY one correct answer plus two
+plausible distractors. **Shuffle the order randomly** so the correct answer is
+not predictably in the first position, then return as json:
 {"dx_options": ["...", "...", "..."], "tx_options": ["...", "...", "..."]}
-Include exactly ONE correct item in each list.
+"""
 """
 
 EXPLANATION_PROMPT = """
