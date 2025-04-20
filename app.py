@@ -12,10 +12,12 @@ case. Return JSON with:
  "hidden_data": {
    "gold_dx": <best final diagnosis>,
    "gold_tx": <best initial management>,
-   "question_bank": [
-     {"q": "...", "a": "..."},
-     ...
-   ]
+  "question_bank": [
+   {"q": "...", "a": "..."}  // EACH q must be a diagnostic question
+ ],
+ EXCLUDE any questions about final diagnosis or treatment.
+ Good examples: "Order arterial blood gas", "Ask about recent travel",
+ "Perform chest auscultation", "Check BNP level".
  }
 Rules:
 - Provide at least 12 Q/A pairs (labs, imaging, history probes, etc.).
@@ -28,6 +30,7 @@ You are a teaching attending. Given:
 Return THREE next-best questions for the learner now:
 {"next_q": ["...", "...", "..."]}
 """
+
 ANSWER_PROMPT = """
 Respond truthfully to the chosen question for this patient.
 Return JSON:
@@ -63,7 +66,7 @@ if "case" not in st.session_state:
 
 case = st.session_state.case
 turn = st.session_state.turn
-max_turns = 6
+max_turns = 10
 
 st.title("🩺 Diagnosis Detective")
 
