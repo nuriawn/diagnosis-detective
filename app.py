@@ -42,13 +42,15 @@ Include the correct answer once in each list and shuffle order.
 
 # ---------- HELPER ----------
 def chat(system_prompt, user_payload):
-    msg = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": json.dumps(user_payload)}
-    ]
-    return openai.ChatCompletion.create(
-        model="gpt-4o-mini", messages=msg, temperature=0.2
-    ).choices[0].message.content
+    response = openai.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": json.dumps(user_payload)}
+        ],
+        temperature=0.2
+    )
+    return response.choices[0].message.content
 
 # ---------- SESSION SET‑UP ----------
 if "case" not in st.session_state:
@@ -108,3 +110,5 @@ if turn >= max_turns or st.session_state.get("final"):
         )
         st.metric("Your score", score)
         st.info(f"Correct Dx: **{gold['gold_dx']}**\n\nCorrect Tx: **{gold['gold_tx']}**")
+
+
