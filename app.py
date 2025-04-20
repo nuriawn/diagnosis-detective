@@ -24,17 +24,28 @@ RETURN IT AS raw json with this schema:
 }
 Rules for question_bank:
 - At least 15 items.
-- About 30% history/physical and 70% objective tests.
-- The first 5 items must be history/physical.
-- Answers are purely factual; if normal, explicitly state "Normal" or give a
-  reference-range value.
-- Never say "not performed" or provide hints.
-- No interpretation or management info.
+- Roughly 30% history/physical and 70% objective tests.
+- The **first 5** entries must be history/physical so the early turns favour questioning.
+- Every answer must be purely factual. If normal/negative, explicitly state a normal value (e.g., "Troponin <0.01 ng/mL – Normal") or the word "Normal".
+- **Never** output phrases like "not provided", "not performed", "N/A", or similar.
+- No interpretation, likelihood statements, or management info.
 Always include CASE_ID copied from the payload seed.
+Output ONLY the json object. CASE_ID copied from the payload seed.
 Output ONLY the json object.
 """
 
 QUESTION_PICKER = """
+You are a teaching attending. You receive:
+  1. full case json
+  2. list questions_already_asked
+  3. current_turn (integer starting at 0)
+Return json exactly: {"next_q": ["q1", "q2", "q3"]}
+Guidelines:
+- Provide 3 *new* diagnostic steps not yet asked.
+- If current_turn < 2, choose only history/physical questions.
+- Otherwise keep a running mix of ~70% objective tests and 30% history across the remaining turns.
+- Do NOT include treatment or diagnosis questions.
+"""
 You are a teaching attending. Given the case json and questions_already_asked,
 RETURN json: {"next_q": ["q1", "q2", "q3"]}
 Guidelines:
@@ -129,7 +140,20 @@ if turn < max_turns and not st.session_state.final:
         st.session_state[q_key] = q_dict["next_q"]
 
     st.subheader("Choose your next diagnostic step")
-    choice = st.radio(
+        # send current_turn to picker
+    if q_key not in st.session_state:
+        q_dict = chat(
+            QUESTION_PICKER,
+            {
+                "case": case,
+                "questions_already_asked": list(st.session_state.revealed),
+                "current_turn": turn,
+            },
+        )
+        st.session_state[q_key] = q_dict["next_q"]
+
+    st.subheader("Choose your next diagnostic step")
+    choice = st.radio((
         "Diagnostic options",
         st.session_state[q_key],
         index=None,
