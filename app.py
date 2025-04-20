@@ -26,7 +26,6 @@ RETURN IT AS raw json with this schema:
 Rules for question_bank:
 - At least 15 items.
 - About 30% history/physical and 70% objective tests.
-- The first 5 entries must be history/physical.
 - Every answer is purely factual. If normal or negative, state a normal value
   (e.g., "D‑dimer 0.2 ug/mL – Normal") or simply "Normal".
 - NEVER output phrases like "not provided", "not performed", "N/A".
@@ -43,7 +42,6 @@ You are a teaching attending. Input payload contains:
 RETURN json exactly: {"next_q": ["q1", "q2", "q3"]}
 Guidelines:
 - Suggest 3 NEW diagnostic steps not yet asked.
-- If current_turn < 2, use ONLY history/physical questions.
 - Otherwise maintain a running mix of about 70% objective tests and 30% history.
 - Do NOT include questions about treatment or diagnosis.
 """
